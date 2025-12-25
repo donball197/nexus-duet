@@ -1,0 +1,27 @@
+name: Nexus Autonomous Ops
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  nexus-cloud-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run Nexus Bootstrap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+        run: |
+          git config --global user.name "Nexus Bot"
+          git config --global user.email "bot@nexus.ai"
+          chmod +x ./nexus.sh
+          ./nexus.sh
