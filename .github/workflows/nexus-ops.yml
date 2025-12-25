@@ -3,13 +3,11 @@ name: Nexus Autonomous Ops
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   nexus-cloud-build:
+    # THIS LINE STOPS THE LOOP: Ignore commits made by the robot
+    if: "!contains(github.event.head_commit.message, '[auto]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
