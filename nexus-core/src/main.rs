@@ -3,10 +3,13 @@ use rand::Rng;
 
 fn main() {
     let mut rng = rand::thread_rng();
-    let chars = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890";
-    let version = "v0.3.0 (MATRIX MODE)";
+    let raw_chars = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890";
+    // FIX: Convert to a list of characters first!
+    let chars: Vec<char> = raw_chars.chars().collect();
+    
+    let version = "v0.3.2 (MATRIX RELOADED)";
 
-    println!("\x1b[2J\x1b[1;1H"); // Clear Screen
+    print!("\x1b[2J\x1b[1;1H"); // Clear Screen
     println!("🚀 INITIALIZING NEXUS VISUALS: {}", version);
     thread::sleep(time::Duration::from_secs(2));
 
@@ -15,9 +18,9 @@ fn main() {
         let mut line = String::new();
         for _ in 0..60 {
             if rng.gen_bool(0.3) {
-                 // Pick a random char
+                 // Safe access using the character list
                  let idx = rng.gen_range(0..chars.len());
-                 let c = chars.chars().nth(idx).unwrap();
+                 let c = chars[idx];
                  line.push(c);
                  line.push(' ');
             } else {
