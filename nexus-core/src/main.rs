@@ -1,36 +1,44 @@
+use sysinfo::{System, RefreshKind, CpuRefreshKind, MemoryRefreshKind};
 use std::{thread, time};
-use rand::Rng;
 
 fn main() {
-    let mut rng = rand::thread_rng();
-    let raw_chars = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890";
-    // FIX: Convert to a list of characters first!
-    let chars: Vec<char> = raw_chars.chars().collect();
+    println!("🚀 INITIALIZING SENSORS...");
     
-    let version = "v0.3.2 (MATRIX RELOADED)";
+    // Setup the sensor array
+    let mut sys = System::new_with_specifics(
+        RefreshKind::new()
+            .with_cpu(CpuRefreshKind::everything())
+            .with_memory(MemoryRefreshKind::everything())
+    );
 
-    print!("\x1b[2J\x1b[1;1H"); // Clear Screen
-    println!("🚀 INITIALIZING NEXUS VISUALS: {}", version);
-    thread::sleep(time::Duration::from_secs(2));
-
-    // Infinite Rain Loop
     loop {
-        let mut line = String::new();
-        for _ in 0..60 {
-            if rng.gen_bool(0.3) {
-                 // Safe access using the character list
-                 let idx = rng.gen_range(0..chars.len());
-                 let c = chars[idx];
-                 line.push(c);
-                 line.push(' ');
-            } else {
-                 line.push_str("  ");
-            }
-        }
-        // Print green text
-        println!("\x1b[32m{}\x1b[0m", line);
+        // Refresh sensor data
+        sys.refresh_all();
+
+        // Clear the screen (Linux/Mac code)
+        print!("\x1b[2J\x1b[1;1H");
+
+        println!("==========================================");
+        println!("      NEXUS SYSTEM MONITOR v1.0");
+        println!("==========================================");
         
-        // Speed of rain
-        thread::sleep(time::Duration::from_millis(50));
+        // Memory Math (Convert Bytes to Megabytes)
+        let total_ram = sys.total_memory() / 1024 / 1024;
+        let used_ram = sys.used_memory() / 1024 / 1024;
+        
+        println!("RAM Usage:   {} MB / {} MB", used_ram, total_ram);
+        println!("CPU Cores:   {}", sys.cpus().len());
+        println!("------------------------------------------");
+
+        // Check each CPU Core
+        for (i, cpu) in sys.cpus().iter().enumerate() {
+            println!("Core {:<2}:      {:.1}%", i, cpu.cpu_usage());
+        }
+        
+        println!("==========================================");
+        println!("Press Ctrl+C to Exit");
+
+        // Update every 1 second
+        thread::sleep(time::Duration::from_secs(1));
     }
 }
