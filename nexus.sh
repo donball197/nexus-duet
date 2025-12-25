@@ -1,41 +1,50 @@
 #!/bin/bash
-echo "🚀 Starting NEXUS-DUET v2.0 (Self-Healing)"
-echo "   [+] Mode: Cloud-Only Releases"
-echo "   [+] Sync: Auto-Rebase Active"
 
-# Loop forever watching for changes
+# --- CLOUD MODE (Runs only on GitHub) ---
+if [ "$CI" = "true" ]; then
+    echo "☁️ CLOUD DETECTED: Starting Production Build..."
+    
+    # 1. Build the binary
+    cargo build --release
+    
+    # 2. Package it (Create the file you can download)
+    tar -czf nexus-core.tar.gz -C target/release nexus-core
+    
+    # 3. Create Release using the GitHub Token
+    # We use the date as a unique version number
+    VERSION="v0.2.$(date +%s)"
+    
+    echo "📦 Creating Release $VERSION..."
+    gh release create "$VERSION" nexus-core.tar.gz --title "Production Release $VERSION" --notes "Automated Build from Level 4 Pipeline"
+    
+    echo "✅ Release Published Successfully. Shutting down Cloud Brain."
+    exit 0
+fi
+
+# --- LOCAL MODE (Runs only on Chromebook) ---
+echo "💻 LOCAL MODE: AUTONOMOUS WATCHER v3.0"
+echo "   [+] Watcher Active. Waiting for you..."
+
 while true; do
-  echo "👀 Watching for changes..."
-  # Watch specifically for Rust files to avoid false triggers
+  # Wait for file changes
   inotifywait -q -e modify,create,delete,move ./nexus-core/src/main.rs ./Cargo.toml 2>/dev/null
   
-  echo "------------------------------------------------"
-  echo "✏️ Change detected! Starting pipeline..."
+  echo "✏️ Change detected! Syncing..."
   
-  # 1. Build locally to check for errors
-  if cargo build --release; then
-      echo "✅ Local Build Success"
-      
-      # 2. Add and Commit
-      git add .
-      git commit -m "Auto-update: $(date '+%H:%M:%S')"
-      
-      # 3. SELF-HEALING SYNC (The Fix)
-      echo "🔄 Syncing with Cloud Robot..."
-      git pull --rebase origin main
-      
-      # 4. Push
-      echo "🚀 Pushing to GitHub..."
-      if git push origin main; then
-         echo "✅ Success! Cloud Brain is now deploying."
-      else
-         echo "❌ Push Failed (Network or Conflict issues)"
-      fi
+  # Self-Healing: Pull changes first to avoid conflicts
+  git pull --rebase origin main
+  
+  # Push the changes
+  git add .
+  git commit -m "Auto-update: $(date '+%H:%M:%S')"
+  
+  echo "🚀 Pushing to Cloud..."
+  if git push origin main; then
+     echo "✅ Upload Successful. Cloud Brain taking over."
   else
-      echo "⚠️ Build Failed. Fix your code!"
+     echo "⚠️ Push failed (Network issue?)"
   fi
   
   echo "------------------------------------------------"
-  # Small delay to let things settle
   sleep 2
 done
