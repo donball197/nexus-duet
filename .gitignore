@@ -1,0 +1,6 @@
+.venv/
+logs/
+.nexus_state/
+deploy/
+extreme/
+target/
