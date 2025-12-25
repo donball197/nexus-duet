@@ -1,19 +1,33 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{thread, time};
+use rand::Rng;
 
 fn main() {
-    let version = "v1.0.0";
-    let status = "SYSTEM LOCKED SECURE SECURE";
-    
-    // Calculate a timestamp-based ID
-    let start = SystemTime::now();
-    let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
-    let verification_code = since_the_epoch.as_secs() * 3;
+    let mut rng = rand::thread_rng();
+    let chars = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890";
+    let version = "v0.3.0 (MATRIX MODE)";
 
-    println!("==========================================");
-    println!("   NEXUS-CORE SECURITY PROTOCOL {}", version);
-    println!("==========================================");
-    println!("   [+] System Status:   {}", status);
-    println!("   [+] Integrity Hash:  {:x}", verification_code);
-    println!("   [+] Local Watcher:   ACTIVE");
-    println!("==========================================");
+    println!("\x1b[2J\x1b[1;1H"); // Clear Screen
+    println!("🚀 INITIALIZING NEXUS VISUALS: {}", version);
+    thread::sleep(time::Duration::from_secs(2));
+
+    // Infinite Rain Loop
+    loop {
+        let mut line = String::new();
+        for _ in 0..60 {
+            if rng.gen_bool(0.3) {
+                 // Pick a random char
+                 let idx = rng.gen_range(0..chars.len());
+                 let c = chars.chars().nth(idx).unwrap();
+                 line.push(c);
+                 line.push(' ');
+            } else {
+                 line.push_str("  ");
+            }
+        }
+        // Print green text
+        println!("\x1b[32m{}\x1b[0m", line);
+        
+        // Speed of rain
+        thread::sleep(time::Duration::from_millis(50));
+    }
 }
