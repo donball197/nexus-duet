@@ -3,27 +3,59 @@ name: Nexus Autonomous Ops
 on:
   push:
     branches: [ "main" ]
-    # THIS SECTION IS THE LOCK:
-    # If only these files change, the robot stays asleep.
     paths-ignore:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
       - 'README.md'
+      - 'Cargo.lock'
 
 jobs:
-  nexus-cloud-build:
+  # Job 1: Linux Build (What you have now)
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Build Linux
+        run: |
+          cargo build --release
+          tar -czf nexus-linux.tar.gz -C target/release nexus-core
+          
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
         with:
-          fetch-depth: 0
+          name: nexus-linux
+          path: nexus-linux.tar.gz
 
-      - name: Run Nexus Bootstrap
+  # Job 2: Windows Build (NEW!)
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build Windows
+        run: |
+          cargo build --release
+          Compress-Archive -Path target/release/nexus-core.exe -DestinationPath nexus-windows.zip
+          
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows
+          path: nexus-windows.zip
+
+  # Job 3: The Release Manager (Combines them)
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      
+      - name: Publish Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CI: true
         run: |
-          git config --global user.name "Nexus Bot"
-          git config --global user.email "bot@nexus.ai"
-          chmod +x ./nexus.sh
-          ./nexus.sh
+          VERSION="v0.3.$(date +%s)"
+          gh release create "$VERSION" \
+            nexus-linux/nexus-linux.tar.gz \
+            nexus-windows/nexus-windows.zip \
+            --title "Multi-Platform Release $VERSION" \
+            --notes "Automated Build: Linux + Windows support."
