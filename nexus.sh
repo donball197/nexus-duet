@@ -22,13 +22,14 @@ if [ "$CI" = "true" ]; then
 fi
 
 # --- LOCAL MODE (Runs only on Chromebook) ---
-echo "💻 LOCAL MODE: AUTONOMOUS WATCHER v3.2 (Re-calibrated)"
+echo "💻 LOCAL MODE: AUTONOMOUS WATCHER v3.3 (Stable)"
 echo "   [+] Watcher Active. Waiting for you..."
 
 while true; do
   # Wait for file changes
-  # UPDATED PATH: We removed 'nexus-core/' because files are now at root
-  inotifywait -q -e modify,create,delete,move ./src/main.rs ./Cargo.toml 2>/dev/null
+  # FIX: We now watch the 'src/' FOLDER recursively (-r). 
+  # This prevents crashes when text editors replace files during save.
+  inotifywait -q -r -e modify,create,delete,move ./src/ ./Cargo.toml 2>/dev/null
   
   echo "✏️ Change detected! Syncing..."
   
@@ -48,5 +49,6 @@ while true; do
   fi
   
   echo "------------------------------------------------"
+  # Sleep for 5 seconds to let the file system settle
   sleep 5
 done
