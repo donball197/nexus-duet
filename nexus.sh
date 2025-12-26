@@ -1,28 +1,5 @@
-#!/bin/bash
-
-# --- CLOUD MODE (Runs only on GitHub) ---
-if [ "$CI" = "true" ]; then
-    echo "☁️ CLOUD DETECTED: Starting Production Build..."
-    
-    # 1. Build the binary
-    cargo build --release
-    
-    # 2. Package it (Create the file you can download)
-    tar -czf nexus-core.tar.gz -C target/release nexus-core
-    
-    # 3. Create Release using the GitHub Token
-    # We use the date as a unique version number
-    VERSION="v0.2.$(date +%s)"
-    
-    echo "📦 Creating Release $VERSION..."
-    gh release create "$VERSION" nexus-core.tar.gz --title "Production Release $VERSION" --notes "Automated Build from Level 4 Pipeline"
-    
-    echo "✅ Release Published Successfully. Shutting down Cloud Brain."
-    exit 0
-fi
-
 # --- LOCAL MODE (Runs only on Chromebook) ---
-echo "💻 LOCAL MODE: AUTONOMOUS WATCHER v3.0"
+echo "💻 LOCAL MODE: AUTONOMOUS WATCHER v3.1 (Fixed)"
 echo "   [+] Watcher Active. Waiting for you..."
 
 while true; do
@@ -31,20 +8,24 @@ while true; do
   
   echo "✏️ Change detected! Syncing..."
   
-  # Self-Healing: Pull changes first to avoid conflicts
-  git pull --rebase origin main
-  
-  # Push the changes
+  # 1. Add and Commit first
   git add .
   git commit -m "Auto-update: $(date '+%H:%M:%S')"
   
   echo "🚀 Pushing to Cloud..."
+  
+  # 2. Try to push. Only pull if the push FAILS.
   if git push origin main; then
-     echo "✅ Upload Successful. Cloud Brain taking over."
+     echo "✅ Upload Successful."
   else
-     echo "⚠️ Push failed (Network issue?)"
+     echo "⚠️ Push failed (Remote changes?). Healing..."
+     # NOW it is safe to pull, because we expect a re-trigger anyway, 
+     # but it won't happen endlessly if the push succeeds next time.
+     git pull --rebase origin main
+     git push origin main
   fi
   
   echo "------------------------------------------------"
-  sleep 2
+  # Increased sleep to let the file system settle
+  sleep 5
 done

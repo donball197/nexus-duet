@@ -1,10 +1,12 @@
-
-
 [package]
 name = "nexus-core"
-version = "0.4.0"
+version = "0.6.0"
 edition = "2021"
 
 [dependencies]
 rand = "0.8"
 sysinfo = "0.30"
+chrono = "0.4"
+actix-web = "4.4"
+serde = { version = "1.0", features = ["derive"] }
+
