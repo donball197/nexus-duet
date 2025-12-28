@@ -3,49 +3,57 @@ name: Nexus Autonomous Ops
 on:
   push:
     branches: [ "main" ]
-    paths-ignore:
-      - 'README.md'
-      - 'Cargo.lock'
+  workflow_dispatch:
 
 jobs:
-  # Job 1: Linux Build
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build Linux
         run: |
           cargo build --release
           tar -czf nexus-linux.tar.gz -C target/release nexus-core
       - uses: actions/upload-artifact@v4
-        with: { name: nexus-linux, path: nexus-linux.tar.gz }
+        with:
+          name: nexus-linux
+          path: nexus-linux.tar.gz
 
-  # Job 2: Windows Build (NEW!)
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build Windows
         run: |
           cargo build --release
           Compress-Archive -Path target/release/nexus-core.exe -DestinationPath nexus-windows.zip
       - uses: actions/upload-artifact@v4
-        with: { name: nexus-windows, path: nexus-windows.zip }
+        with:
+          name: nexus-windows
+          path: nexus-windows.zip
 
-  # Job 3: The Release Manager
   create-release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      -uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-linux
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows
       - name: Publish Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="v0.4.$(date +%s)"
           gh release create "$VERSION" \
-            nexus-linux/nexus-linux.tar.gz \
-            nexus-windows/nexus-windows.zip \
-            --title "Matrix Cross-Platform $VERSION" \
-            --notes "Automated Build: Now with Windows Support."
+            nexus-linux.tar.gz \
+            nexus-windows.zip \
+            --title "Nexus Build $VERSION" \
+            --notes "Automated cross-platform build."
