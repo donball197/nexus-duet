@@ -1,3 +1,8 @@
+| Service | Status | Link |
+| :--- | :---: | :--- |
+| **Database** | ![DB](https://img.shields.io/badge/PostgreSQL-Healthy-success?logo=postgresql) | [Backups](./backups) |
+| **Local AI** | ![Ollama](https://img.shields.io/badge/Ollama-Online-blue?logo=ollama) | [Models](https://ollama.com) |
+| **System API** | ![API](https://img.shields.io/badge/Backend-Active-brightgreen?logo=rust) | [Health Check](./health_check.sh) |
 # Nexus-Duet: Autonomous Hybrid AI Pipeline 🚀
 
 **Nexus-Duet** is an intelligent DevOps agent that acts as a "Self-Healing" infrastructure engineer. It utilizes a **Hybrid AI Architecture** to combine the privacy of local LLMs with the reasoning power of Cloud AI.
