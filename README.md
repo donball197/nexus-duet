@@ -11,6 +11,7 @@
 
 ## 🏗️ System Architecture
 
+```mermaid
 flowchart TD
     Developer[Developer / CLI]
     API[Nexus-Duet Core API]
