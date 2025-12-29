@@ -11,19 +11,18 @@
 
 ## 🏗️ System Architecture
 
-```mermaid
 flowchart TD
-    Developer[👨‍💻 Developer / CLI]
-    API[⚙️ Nexus-Duet Core API]
-    LocalLLM[🧠 Local LLMs (Ollama)]
-    CloudAI[☁️ Cloud AI (Gemini / OpenAI)]
-    DB[(🗄️ PostgreSQL)]
-    FS[📁 Local Filesystem]
-    Gist[📊 GitHub Gists / Badges]
+    Developer[Developer / CLI]
+    API[Nexus-Duet Core API]
+    LocalLLM[Local LLMs - Ollama]
+    CloudAI[Cloud AI - Gemini / OpenAI]
+    DB[(PostgreSQL Database)]
+    FS[Local Filesystem]
+    Gist[GitHub Gists / Badges]
 
     Developer -->|Commands| API
     API -->|Inference| LocalLLM
-    API -->|Escalation / Reasoning| CloudAI
-    API -->|State & Memory| DB
+    API -->|Escalation| CloudAI
+    API -->|State| DB
     API -->|Read / Write| FS
-    API -->|Metrics & Status| Gist
+    API -->|Status Updates| Gist
