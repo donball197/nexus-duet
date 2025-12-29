@@ -29,3 +29,11 @@ docker-compose up -d
 
 ---
 *Built by **DonBall197**.*
+
+## 🛡️ Security & Secret Management
+This project follows industry-standard security practices for protecting sensitive credentials:
+
+* **Environment Separation**: API keys and database credentials are never hardcoded in the source code.
+* **Secret Masking**: All sensitive data is stored in a local-only `athena.env` file which is explicitly ignored by version control via `.gitignore`.
+* **Key Rotation**: The architecture supports rapid key rotation and revocation via Google AI Studio and Docker environment injection.
+* **Container Isolation**: Credentials are injected into the backend container at runtime using the `env_file` directive, ensuring secrets stay out of Docker image layers.
