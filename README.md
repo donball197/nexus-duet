@@ -1,4 +1,4 @@
-| Service | Status | Link |
+| Service | Status | Link |![Tasks Solved](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/donball197/YOUR_TASK_GIST_ID/raw/athena_tasks.json)
 | :--- | :---: | :--- |
 | **Database** | ![DB](https://img.shields.io/badge/PostgreSQL-Healthy-success?logo=postgresql) | [Backups](./backups) |
 | **Local AI** | ![Ollama](https://img.shields.io/badge/Ollama-Online-blue?logo=ollama) | [Models](https://ollama.com) |
