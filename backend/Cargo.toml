@@ -1,0 +1,16 @@
+[package]
+name = "athenafusionx-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+warp = "0.3"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.11", features = ["json"] }
+dotenv = "0.15"
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+
+# THE FIX: We force this library to use the stable version
+home = "=0.5.9"

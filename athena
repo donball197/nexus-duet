@@ -1,0 +1,127 @@
+#!/bin/bash
+# =============================================================================
+# AthenaFusionX — Genesis Master Controller (v9.7 ARM64/ChromeOS Optimized)
+# =============================================================================
+set -euo pipefail
+
+# --- Configuration ---
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND_DIRS=("frontend/customer-portal" "frontend/admin" "frontend/marketing")
+GIT_USER_NAME="donball197"
+GIT_USER_EMAIL="donball197@gmail.com"
+GITHUB_REPO="${GITHUB_REPO:-https://github.com/donball197/athenafusionx.git}"
+
+# Colors
+GREEN='\033[0;32m'; NC='\033[0m'
+log() { echo -e "${GREEN}[🚀] $1${NC}"; }
+
+# ====================== 1. CHROMEOS PERMISSIONS ======================
+# Prevent "Permission denied" on Docker socket
+sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+
+# ====================== 2. PROJECT INITIALIZATION ======================
+if [ ! -f "Cargo.toml" ]; then
+    log "Initializing Workspace..."
+    cat <<EOF > Cargo.toml
+[workspace]
+members = ["backend"]
+resolver = "2"
+EOF
+    mkdir -p backend/src
+    cat <<EOF > backend/Cargo.toml
+[package]
+name = "athenafusionx-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+dotenv = "0.15"
+EOF
+fi
+
+# ====================== 3. GEMINI AI LOGIC (Auto-Inject) ======================
+# Ensures your main.rs always has the chat logic, even if deleted
+cat <<EOF > backend/src/main.rs
+use warp::Filter;
+use serde::{Deserialize, Serialize};
+use std::env;
+
+#[derive(Deserialize)]
+struct ChatRequest { prompt: String }
+#[derive(Serialize)]
+struct ChatResponse { response: String }
+
+async fn handle_chat(req: ChatRequest) -> Result<impl warp::Reply, warp::Rejection> {
+    let api_key = env::var("GEMINI_API_KEY").unwrap_or_default();
+    let client = reqwest::Client::new();
+    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}", api_key);
+    
+    let body = serde_json::json!({ "contents": [{ "parts": [{ "text": req.prompt }] }] });
+    
+    match client.post(&url).json(&body).send().await {
+        Ok(res) => {
+            let json: serde_json::Value = res.json().await.unwrap_or_default();
+            let text = json["candidates"][0]["content"]["parts"][0]["text"].as_str().unwrap_or("AI processing...").to_string();
+            Ok(warp::reply::json(&ChatResponse { response: text }))
+        }
+        Err(_) => Ok(warp::reply::json(&ChatResponse { response: "Connection Error".to_string() }))
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().ok();
+    let cors = warp::cors().allow_any_origin().allow_methods(vec!["POST", "GET"]);
+    
+    let chat = warp::path("chat").and(warp::post()).and(warp::body::json()).and_then(handle_chat);
+    let health = warp::path("health").map(|| warp::reply::json(&"AI_ALIVE"));
+    
+    let routes = health.or(chat).with(cors);
+    println!("🚀 Athena Backend Active on Port 8080");
+    warp::serve(routes).run(([0, 0, 0, 0], 8080)).await;
+}
+EOF
+
+# ====================== 4. DOCKER ASSETS (With pkg-config fix) ======================
+log "Generating Docker Assets..."
+cat <<EOF > backend/Dockerfile
+FROM rust:1.83-slim as builder
+# FIX: Install pkg-config and libssl-dev for ARM64/ChromeOS
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY . .
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+# FIX: Runtime dependencies
+RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/athenafusionx-backend /athena
+CMD ["/athena"]
+EOF
+
+cat <<EOF > docker-compose.yml
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    ports:
+      - "8080:8080"
+EOF
+
+# ====================== 5. LAUNCH (Local Build Skipped) ======================
+COMPOSE_CMD="docker-compose"
+if ! command -v docker-compose &> /dev/null; then COMPOSE_CMD="docker compose"; fi
+
+log "Launching Container Stack..."
+$COMPOSE_CMD up -d --build
+
+log "======================================================"
+log "✅ BUILD COMPLETE"
+log "Test AI: curl -X POST http://localhost:8080/chat -d '{\"prompt\":\"Hello\"}' -H 'Content-Type: application/json'"
+log "======================================================"

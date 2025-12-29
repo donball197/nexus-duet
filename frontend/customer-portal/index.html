@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Athena Intelligence Hub</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 90%; max-width: 1200px; }
+        .box { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; }
+        h2 { color: #38bdf8; margin: 0 0 15px 0; }
+        #chat-window { height: 400px; overflow-y: auto; background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #334155; }
+        #task-board { height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; color: #94a3b8; }
+        .input-area { display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border-radius: 6px; border: none; background: #334155; color: white; outline: none; }
+        button { padding: 10px 20px; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔱 AthenaFusionX Intelligence Hub</h1>
+    <div class="grid">
+        <div class="box">
+            <h2>💬 Agent Interface</h2>
+            <div id="chat-window"></div>
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="Talk to the swarm..." onkeypress="if(event.key==='Enter')sendMessage()">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        <div class="box">
+            <h2>🛰️ A2A Communication Logs</h2>
+            <div id="task-board">Listening for agent signals...</div>
+        </div>
+    </div>
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value; if (!text) return;
+            appendChat("You", text); input.value = '';
+            try {
+                const res = await fetch('http://localhost:8080/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ prompt: text, user_id: "admin" })
+                });
+                const data = await res.json();
+                appendChat("Athena", data.response);
+            } catch(e) { appendChat("System", "Error: Backend offline."); }
+        }
+        function appendChat(user, msg) {
+            const win = document.getElementById('chat-window');
+            win.innerHTML += `<div><strong>${user}:</strong> ${msg}</div><hr style="border:0;border-top:1px solid #334155;margin:10px 0;">`;
+            win.scrollTop = win.scrollHeight;
+        }
+    </script>
+</body>
+</html>
