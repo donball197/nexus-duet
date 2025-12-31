@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask-SocketIO Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="chat-header">
+            <h1>Real-time Chat</h1>
+        </div>
+
+        <!-- Username Selection Area -->
+        <div id="username-section" class="username-section">
+            <input type="text" id="username-input" placeholder="Choose a username..." maxlength="15">
+            <button id="set-username-btn">Enter Chat</button>
+            <p id="username-error" class="error-message"></p>
+        </div>
+
+        <!-- Chat Application Area -->
+        <div id="chat-app" class="chat-app hidden">
+            <div class="sidebar">
+                <h2>Users</h2>
+                <ul id="user-list">
+                    <!-- Users will be listed here by JavaScript -->
+                </ul>
+            </div>
+            <div class="main-chat">
+                <div id="messages" class="messages">
+                    <!-- Chat messages will appear here -->
+                </div>
+                <div class="message-input-area">
+                    <input type="text" id="message-input" placeholder="Type a message...">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+

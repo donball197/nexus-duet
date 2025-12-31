@@ -16,382 +16,576 @@ cd "$PROJ_NAME"
 
 echo '📝 Writing files...'
 cat << 'EOF_NEXUS' > "requirements.txt"
-Flask
-Flask-SQLAlchemy
-Flask-WTF
-python-dotenv
+Flask==2.3.3
+Flask-SocketIO==5.3.0
+simple-websocket==1.0.0
 
 EOF_NEXUS
 echo '  - Created: requirements.txt'
 
-cat << 'EOF_NEXUS' > ".env"
-# .env
-SECRET_KEY='004212564177694f487e22645672526e64434268686d496e62615462614b676a6b576868516d4161'
-
-EOF_NEXUS
-echo '  - Created: .env'
-
 cat << 'EOF_NEXUS' > "app.py"
-import os
-from datetime import timedelta
-from functools import wraps
-
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, EqualTo, Length, ValidationError
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from flask import Flask, render_template, request, session, redirect, url_for
+from flask_socketio import SocketIO, emit, join_room, leave_room
+import datetime
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_super_secret_key_here' # Change this!
+socketio = SocketIO(app)
 
-# --- Configuration ---
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-if not app.config['SECRET_KEY']:
-    # Fallback for development if .env is not loaded, but strongly discourage in production
-    app.config['SECRET_KEY'] = 'a_fallback_secret_key_if_env_is_missing_and_only_for_dev'
-    print("WARNING: SECRET_KEY not found in environment. Using a fallback key. "
-          "Ensure .env is configured correctly for production.")
+# Store connected users and their SIDs
+# Format: {sid: username}
+connected_users = {}
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30) # Session expires after 30 minutes
-
-db = SQLAlchemy(app)
-
-# --- Database Models ---
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-
-    def set_password(self, password):
-        """Hashes the password and stores it."""
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        """Checks if the provided password matches the stored hash."""
-        return check_password_hash(self.password_hash, password)
-
-    def __repr__(self):
-        return f'<User {self.username}>'
-
-# --- Forms ---
-class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[
-        DataRequired(message='Username is required.'),
-        Length(min=2, max=20, message='Username must be between 2 and 20 characters.')
-    ])
-    password = PasswordField('Password', validators=[
-        DataRequired(message='Password is required.'),
-        Length(min=6, message='Password must be at least 6 characters long.')
-    ])
-    confirm_password = PasswordField('Confirm Password', validators=[
-        DataRequired(message='Please confirm your password.'),
-        EqualTo('password', message='Passwords must match.')
-    ])
-    submit = SubmitField('Register')
-
-    def validate_username(self, username):
-        """Custom validator to check if username already exists."""
-        user = User.query.filter_by(username=username.data).first()
-        if user:
-            raise ValidationError('That username is taken. Please choose a different one.')
-
-class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(message='Username is required.')])
-    password = PasswordField('Password', validators=[DataRequired(message='Password is required.')])
-    submit = SubmitField('Login')
-
-# --- Helper Decorators ---
-def login_required(f):
-    """
-    Decorator to protect routes that require user authentication.
-    Redirects unauthenticated users to the login page.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please log in to access this page.', 'info')
-            return redirect(url_for('login', next=request.url)) # Pass next URL for redirection after login
-        return f(*args, **kwargs)
-    return decorated_function
-
-# --- Routes ---
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return render_template('index.html')
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
+@socketio.on('connect')
+def handle_connect():
+    print(f'Client connected: {request.sid}')
+    # No username yet, so we don't add to connected_users here
 
-    form = RegistrationForm()
-    if form.validate_on_submit():
-        new_user = User(username=form.username.data)
-        new_user.set_password(form.password.data)
-        db.session.add(new_user)
-        db.session.commit()
-        flash('Your account has been created! You can now log in.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html', title='Register', form=form)
+@socketio.on('disconnect')
+def handle_disconnect():
+    username = connected_users.pop(request.sid, 'An unknown user')
+    if username != 'An unknown user':
+        emit('user_left', {'username': username}, broadcast=True)
+        print(f'User disconnected: {username} ({request.sid})')
+    else:
+        print(f'Client disconnected: {request.sid} (before setting username)')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
 
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
-            session['user_id'] = user.id
-            session['username'] = user.username # Store username for display
-            session.permanent = True # Make session permanent based on PERMANENT_SESSION_LIFETIME
-            flash(f'Welcome back, {user.username}!', 'success')
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('dashboard'))
-        else:
-            flash('Login Unsuccessful. Please check username and password', 'danger')
-    return render_template('login.html', title='Login', form=form)
+@socketio.on('set_username')
+def handle_set_username(data):
+    username = data['username'].strip()
 
-@app.route('/logout')
-@login_required
-def logout():
-    session.pop('user_id', None)
-    session.pop('username', None)
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
+    if not username:
+        emit('username_error', {'message': 'Username cannot be empty.'})
+        return
 
-@app.route('/dashboard')
-@login_required # This route requires a user to be logged in
-def dashboard():
-    return render_template('dashboard.html', title='Dashboard', username=session.get('username'))
+    # Check if username is already taken by another connected user
+    if username in connected_users.values():
+        emit('username_error', {'message': 'Username is already taken.'})
+        return
 
-# --- Initial Database Setup ---
-# This ensures tables are created when the application starts for the first time
-# or if the database file is new/empty.
-with app.app_context():
-    db.create_all()
+    # Store the username with the session ID
+    connected_users[request.sid] = username
+    print(f'User {username} set for SID: {request.sid}')
+
+    # Notify the client that their username was successfully set
+    emit('username_set_success', {'username': username})
+
+    # Notify all other clients that a new user has joined
+    emit('user_joined', {'username': username}, broadcast=True, include_self=False)
+
+    # Send the current list of users to the newly joined client
+    emit('current_users', {'users': list(connected_users.values())})
+
+    # Send the current list of users to all clients
+    emit('update_user_list', {'users': list(connected_users.values())}, broadcast=True)
+
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    message = data['message'].strip()
+    username = connected_users.get(request.sid)
+
+    if not username:
+        emit('message_error', {'message': 'You need to set a username first!'})
+        return
+
+    if not message:
+        return # Don't send empty messages
+
+    timestamp = datetime.datetime.now().strftime('%H:%M')
+    print(f'[{timestamp}] {username}: {message}')
+    emit('new_message', {'username': username, 'message': message, 'timestamp': timestamp}, broadcast=True)
+
 
 if __name__ == '__main__':
-    app.run(debug=True) # Set debug=False in production!
+    socketio.run(app, debug=True, allow_unsafe_werkzeug=True) # allow_unsafe_werkzeug for development
 
 EOF_NEXUS
 echo '  - Created: app.py'
 
 mkdir -p "templates"
-cat << 'EOF_NEXUS' > "templates/base.html"
+cat << 'EOF_NEXUS' > "templates/index.html"
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Flask Login - {% block title %}{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { padding-top: 56px; }
-        .flash-message { margin-top: 15px; }
-    </style>
+    <title>Flask-SocketIO Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('index') }}">Flask Login</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    {% if 'user_id' in session %}
-                        <li class="nav-item">
-                            <span class="navbar-text me-3">
-                                Welcome, {{ session.get('username') }}!
-                            </span>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link btn btn-outline-light" href="{{ url_for('logout') }}">Logout</a>
-                        </li>
-                    {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link btn btn-outline-light me-2" href="{{ url_for('login') }}">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link btn btn-primary" href="{{ url_for('register') }}">Register</a>
-                        </li>
-                    {% endif %}
+    <div class="container">
+        <div class="chat-header">
+            <h1>Real-time Chat</h1>
+        </div>
+
+        <!-- Username Selection Area -->
+        <div id="username-section" class="username-section">
+            <input type="text" id="username-input" placeholder="Choose a username..." maxlength="15">
+            <button id="set-username-btn">Enter Chat</button>
+            <p id="username-error" class="error-message"></p>
+        </div>
+
+        <!-- Chat Application Area -->
+        <div id="chat-app" class="chat-app hidden">
+            <div class="sidebar">
+                <h2>Users</h2>
+                <ul id="user-list">
+                    <!-- Users will be listed here by JavaScript -->
                 </ul>
             </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-message">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
+            <div class="main-chat">
+                <div id="messages" class="messages">
+                    <!-- Chat messages will appear here -->
                 </div>
-            {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
+                <div class="message-input-area">
+                    <input type="text" id="message-input" placeholder="Type a message...">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
 
 EOF_NEXUS
-echo '  - Created: templates/base.html'
+echo '  - Created: templates/index.html'
 
-mkdir -p "templates"
-cat << 'EOF_NEXUS' > "templates/register.html"
-{% extends "base.html" %}
-{% block title %}Register{% endblock %}
-{% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header text-center">
-                <h3>Register</h3>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    {{ form.hidden_tag() }} <!-- CSRF Token -->
-                    <div class="mb-3">
-                        {{ form.username.label(class="form-label") }}
-                        {{ form.username(class="form-control", placeholder="Enter username") }}
-                        {% if form.username.errors %}
-                            <div class="text-danger">
-                                {% for error in form.username.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.password.label(class="form-label") }}
-                        {{ form.password(class="form-control", placeholder="Enter password") }}
-                        {% if form.password.errors %}
-                            <div class="text-danger">
-                                {% for error in form.password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.confirm_password.label(class="form-label") }}
-                        {{ form.confirm_password(class="form-control", placeholder="Confirm password") }}
-                        {% if form.confirm_password.errors %}
-                            <div class="text-danger">
-                                {% for error in form.confirm_password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="d-grid gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
-                    </div>
-                </form>
-                <small class="text-muted d-block text-center mt-3">
-                    Already have an account? <a href="{{ url_for('login') }}">Log In</a>
-                </small>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+mkdir -p "static"
+cat << 'EOF_NEXUS' > "static/style.css"
+/* General Styling */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a2e; /* Dark background */
+    color: #e0e0e0; /* Light text color */
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.container {
+    background-color: #2a2a4a; /* Slightly lighter dark for container */
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-header {
+    background-color: #3a3a5e; /* Header background */
+    padding: 15px 25px;
+    border-bottom: 1px solid #4a4a7a;
+    text-align: center;
+}
+
+.chat-header h1 {
+    margin: 0;
+    font-size: 1.8em;
+    color: #90caf9; /* A nice light blue accent */
+}
+
+/* Username Section */
+.username-section {
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.username-section input[type="text"] {
+    width: 80%;
+    max-width: 300px;
+    padding: 12px 15px;
+    border: 1px solid #4a4a7a;
+    border-radius: 8px;
+    background-color: #3a3a5e;
+    color: #e0e0e0;
+    font-size: 1em;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.username-section input[type="text"]::placeholder {
+    color: #a0a0c0;
+}
+
+.username-section input[type="text"]:focus {
+    border-color: #90caf9;
+}
+
+/* Buttons */
+button {
+    background-color: #90caf9; /* Accent blue */
+    color: #1a1a2e;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    outline: none;
+}
+
+button:hover {
+    background-color: #64b5f6; /* Lighter blue on hover */
+    transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Error Message */
+.error-message {
+    color: #ff8a80; /* Light red for errors */
+    font-size: 0.9em;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* Chat Application Layout */
+.chat-app {
+    display: flex;
+    height: 600px; /* Fixed height for chat area */
+}
+
+.sidebar {
+    width: 200px;
+    background-color: #3a3a5e;
+    padding: 20px;
+    border-right: 1px solid #4a4a7a;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar h2 {
+    margin-top: 0;
+    color: #90caf9;
+    font-size: 1.4em;
+    border-bottom: 1px solid #4a4a7a;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+#user-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto; /* Scroll for many users */
+    flex-grow: 1;
+}
+
+#user-list li {
+    padding: 8px 0;
+    color: #c0c0d0;
+    font-size: 0.95em;
+    display: flex;
+    align-items: center;
+}
+
+#user-list li::before {
+    content: '•';
+    color: #4CAF50; /* Green dot for online */
+    margin-right: 8px;
+    font-size: 1.2em;
+}
+
+.main-chat {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.messages {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto; /* Scroll for messages */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    background-color: #3a3a5e;
+    padding: 10px 15px;
+    border-radius: 10px;
+    max-width: 80%;
+    align-self: flex-start; /* Default alignment */
+    word-wrap: break-word; /* Ensure long words break */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.message.system {
+    background-color: #4a4a7a;
+    color: #a0a0c0;
+    font-style: italic;
+    text-align: center;
+    max-width: 100%;
+}
+
+.message .username {
+    font-weight: bold;
+    color: #90caf9;
+    margin-right: 8px;
+}
+
+.message .timestamp {
+    font-size: 0.8em;
+    color: #8080a0;
+    margin-left: 10px;
+}
+
+/* Message Input Area */
+.message-input-area {
+    display: flex;
+    padding: 15px 20px;
+    border-top: 1px solid #4a4a7a;
+    background-color: #2a2a4a;
+    gap: 10px;
+}
+
+.message-input-area input[type="text"] {
+    flex-grow: 1;
+    padding: 12px 15px;
+    border: 1px solid #4a4a7a;
+    border-radius: 8px;
+    background-color: #3a3a5e;
+    color: #e0e0e0;
+    font-size: 1em;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.message-input-area input[type="text"]::placeholder {
+    color: #a0a0c0;
+}
+
+.message-input-area input[type="text"]:focus {
+    border-color: #90caf9;
+}
+
+.message-input-area button {
+    padding: 12px 20px;
+    min-width: 80px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+/* Scrollbar Styling (Webkit only) */
+.messages::-webkit-scrollbar,
+#user-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.messages::-webkit-scrollbar-track,
+#user-list::-webkit-scrollbar-track {
+    background: #2a2a4a;
+}
+
+.messages::-webkit-scrollbar-thumb,
+#user-list::-webkit-scrollbar-thumb {
+    background-color: #4a4a7a;
+    border-radius: 10px;
+    border: 2px solid #2a2a4a;
+}
+
+.messages::-webkit-scrollbar-thumb:hover,
+#user-list::-webkit-scrollbar-thumb:hover {
+    background-color: #5a5a8a;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .chat-app {
+        flex-direction: column;
+        height: auto;
+    }
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #4a4a7a;
+        height: 150px; /* Make sidebar shorter on mobile */
+    }
+    .main-chat {
+        height: 400px; /* Adjust chat height */
+    }
+    .username-section input[type="text"],
+    .username-section button {
+        width: 90%;
+    }
+}
+
+@media (max-width: 480px) {
+    .chat-header h1 {
+        font-size: 1.5em;
+    }
+    .message-input-area {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .message-input-area button {
+        width: 100%;
+    }
+}
 
 EOF_NEXUS
-echo '  - Created: templates/register.html'
+echo '  - Created: static/style.css'
 
-mkdir -p "templates"
-cat << 'EOF_NEXUS' > "templates/login.html"
-{% extends "base.html" %}
-{% block title %}Login{% endblock %}
-{% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header text-center">
-                <h3>Login</h3>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    {{ form.hidden_tag() }} <!-- CSRF Token -->
-                    <div class="mb-3">
-                        {{ form.username.label(class="form-label") }}
-                        {{ form.username(class="form-control", placeholder="Enter username") }}
-                        {% if form.username.errors %}
-                            <div class="text-danger">
-                                {% for error in form.username.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.password.label(class="form-label") }}
-                        {{ form.password(class="form-control", placeholder="Enter password") }}
-                        {% if form.password.errors %}
-                            <div class="text-danger">
-                                {% for error in form.password.errors %}
-                                    <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="d-grid gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
-                    </div>
-                </form>
-                <small class="text-muted d-block text-center mt-3">
-                    Need an account? <a href="{{ url_for('register') }}">Sign Up</a>
-                </small>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
+mkdir -p "static"
+cat << 'EOF_NEXUS' > "static/script.js"
+$(document).ready(function() {
+    const socket = io(); // Connect to the SocketIO server
+
+    const usernameInput = $('#username-input');
+    const setUsernameBtn = $('#set-username-btn');
+    const usernameError = $('#username-error');
+    const usernameSection = $('#username-section');
+    const chatApp = $('#chat-app');
+    const messageInput = $('#message-input');
+    const sendButton = $('#send-button');
+    const messagesDiv = $('#messages');
+    const userList = $('#user-list');
+
+    let currentUsername = '';
+
+    // --- Utility Functions ---
+    function scrollToBottom() {
+        messagesDiv.scrollTop(messagesDiv[0].scrollHeight);
+    }
+
+    function appendMessage(username, message, timestamp, isSystem = false) {
+        const messageClass = isSystem ? 'system' : '';
+        const messageElement = $(`<div class="message ${messageClass}"></div>`);
+        if (isSystem) {
+            messageElement.text(message);
+        } else {
+            messageElement.html(`<span class="username">${username}</span>: ${message}<span class="timestamp">${timestamp}</span>`);
+        }
+        messagesDiv.append(messageElement);
+        scrollToBottom();
+    }
+
+    function updateUsers(users) {
+        userList.empty();
+        users.forEach(user => {
+            userList.append($('<li>').text(user));
+        });
+    }
+
+    // --- SocketIO Event Handlers ---
+
+    // Connection events
+    socket.on('connect', function() {
+        console.log('Connected to server!');
+    });
+
+    socket.on('disconnect', function() {
+        console.log('Disconnected from server!');
+        // Optionally, show a message to the user
+        appendMessage('System', 'You have been disconnected from the chat.', '', true);
+        chatApp.addClass('hidden');
+        usernameSection.removeClass('hidden');
+        currentUsername = '';
+    });
+
+    // Username events
+    setUsernameBtn.on('click', function() {
+        const username = usernameInput.val().trim();
+        if (username) {
+            socket.emit('set_username', { 'username': username });
+            usernameError.text(''); // Clear previous error
+        } else {
+            usernameError.text('Please enter a username.');
+        }
+    });
+
+    // Allow pressing Enter in username input
+    usernameInput.on('keypress', function(e) {
+        if (e.which === 13) { // Enter key
+            setUsernameBtn.click();
+        }
+    });
+
+    socket.on('username_set_success', function(data) {
+        currentUsername = data.username;
+        usernameSection.addClass('hidden');
+        chatApp.removeClass('hidden');
+        messagesDiv.empty(); // Clear any previous messages if re-joining
+        appendMessage('System', `Welcome, ${currentUsername}!`, '', true);
+        messageInput.focus(); // Focus on message input
+    });
+
+    socket.on('username_error', function(data) {
+        usernameError.text(data.message);
+    });
+
+    socket.on('user_joined', function(data) {
+        appendMessage('System', `${data.username} has joined the chat.`, '', true);
+    });
+
+    socket.on('user_left', function(data) {
+        appendMessage('System', `${data.username} has left the chat.`, '', true);
+    });
+
+    socket.on('current_users', function(data) {
+        updateUsers(data.users);
+    });
+
+    socket.on('update_user_list', function(data) {
+        updateUsers(data.users);
+    });
+
+
+    // Message events
+    sendButton.on('click', function() {
+        const message = messageInput.val().trim();
+        if (message) {
+            socket.emit('send_message', { 'message': message });
+            messageInput.val(''); // Clear input
+        }
+    });
+
+    // Allow pressing Enter in message input
+    messageInput.on('keypress', function(e) {
+        if (e.which === 13) { // Enter key
+            sendButton.click();
+        }
+    });
+
+    socket.on('new_message', function(data) {
+        appendMessage(data.username, data.message, data.timestamp);
+    });
+
+    socket.on('message_error', function(data) {
+        // This error should ideally not happen if UI enforces username first
+        // But good to handle for robustness
+        appendMessage('System', `Error: ${data.message}`, '', true);
+    });
+});
 
 EOF_NEXUS
-echo '  - Created: templates/login.html'
-
-mkdir -p "templates"
-cat << 'EOF_NEXUS' > "templates/dashboard.html"
-{% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block content %}
-<div class="jumbotron text-center mt-5">
-    <h1 class="display-4">Welcome to your Dashboard, {{ username }}!</h1>
-    <p class="lead">This is a protected page, only accessible to logged-in users.</p>
-    <hr class="my-4">
-    <p>You can add more user-specific content and features here.</p>
-    <a class="btn btn-primary btn-lg" href="{{ url_for('logout') }}" role="button">Logout</a>
-</div>
-{% endblock %}
-
-EOF_NEXUS
-echo '  - Created: templates/dashboard.html'
+echo '  - Created: static/script.js'
 
 echo '--------------------------------------------'
 echo '⚙️  Setting up Environment...'
