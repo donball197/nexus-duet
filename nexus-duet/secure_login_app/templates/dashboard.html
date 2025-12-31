@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="jumbotron text-center mt-5">
+    <h1 class="display-4">Welcome to your Dashboard, {{ username }}!</h1>
+    <p class="lead">This is a protected page, only accessible to logged-in users.</p>
+    <hr class="my-4">
+    <p>You can add more user-specific content and features here.</p>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('logout') }}" role="button">Logout</a>
+</div>
+{% endblock %}
+
