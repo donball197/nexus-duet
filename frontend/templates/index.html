@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Athenafusionx T7 Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #e0e0e0; text-align: center; }
+        .grid { display: flex; justify-content: center; gap: 20px; margin-top: 50px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 10px; border: 1px solid #333; width: 200px; }
+        .online { color: #4caf50; font-weight: bold; }
+        .offline { color: #f44336; font-weight: bold; }
+        h1 { color: #bb86fc; }
+    </style>
+</head>
+<body>
+    <h1>🛰️ Athenafusionx Control Center</h1>
+    <div class="grid">
+        <div class="card"><h3>T1 Infrastructure</h3><p class="{{ t1_class }}">{{ t1_status }}</p></div>
+        <div class="card"><h3>T2 Persistence</h3><p>Tasks: {{ pending_tasks }}</p></div>
+        <div class="card"><h3>T3 Chaos Agent</h3><p>Logic: 100%</p></div>
+    </div>
+    <p>Last Updated: {{ timestamp }}</p>
+</body>
+</html>

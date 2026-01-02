@@ -1,0 +1,20 @@
+# Example configuration file for the Rust DevOps Agent
+
+# Unique identifier for this agent instance
+agent_id = "rust-agent-prod-001"
+
+# Base URL for the central CI/CD orchestrator API
+orchestrator_url = "http://localhost:8080" # Replace with your actual orchestrator URL
+
+# How often the agent should poll the orchestrator for new tasks (in seconds)
+poll_interval_seconds = 5
+
+# Maximum number of tasks this agent can execute concurrently
+max_concurrent_tasks = 2
+
+# Optional: Log level (e.g., "info", "debug", "trace")
+# log_level = "info"
+
+# Optional: Authentication token for the orchestrator (e.g., JWT, API Key)
+# auth_token = "your-secure-token-here"
+

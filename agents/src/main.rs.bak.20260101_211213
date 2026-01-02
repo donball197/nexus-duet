@@ -1,0 +1,110 @@
+use anyhow::Context;
+use anyhow::Result;
+use clap::Parser;
+use tracing::{error, info, instrument};
+use tokio::sync::Semaphore;
+use std::sync::Arc;
+
+mod config;
+mod task_executor;
+mod communication;
+
+/// Command-line arguments for the Rust DevOps Agent.
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the agent configuration file (e.g., Agent.toml)
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 1. Initialize tracing for comprehensive observability
+    // This sets up a subscriber that prints logs to stdout, filtered by environment variables.
+    // E.g., `RUST_LOG=info cargo run` or `RUST_LOG=debug cargo run`
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
+    let args = Args::parse();
+
+    // 2. Load agent configuration
+    let agent_config = config::AgentConfig::load(args.config.as_deref())?;
+    info!("Agent configuration loaded: {:?}", agent_config);
+
+    // 3. Initialize communication client for orchestrator interaction
+    let comm_client = Arc::new(communication::OrchestratorClient::new(
+        &agent_config.orchestrator_url,
+        &agent_config.agent_id,
+    )?);
+    info!("Communication client initialized for orchestrator: {}", agent_config.orchestrator_url);
+
+    // 4. Setup a semaphore to limit concurrent task execution
+    let task_semaphore = Arc::new(Semaphore::new(agent_config.max_concurrent_tasks));
+    info!("Agent configured to run a maximum of {} concurrent tasks.", agent_config.max_concurrent_tasks);
+
+    info!("Rust DevOps Agent '{}' starting...", agent_config.agent_id);
+
+    // Main agent loop: continuously poll for tasks and execute them
+    loop {
+        // Acquire a permit from the semaphore before polling.
+        // This ensures we don't poll for more tasks than we can handle concurrently.
+        let semaphore_clone = Arc::clone(&task_semaphore);
+        let permit = semaphore_clone.acquire().await.context("Failed to acquire semaphore permit")?;
+        let permit = semaphore_clone.acquire().await.context("Failed to acquire semaphore permit")?;
+        info!("Semaphore permit acquired. Available permits: {}", task_semaphore.available_permits());
+
+        match comm_client.poll_for_task().await {
+            Ok(Some(task)) => {
+                info!("Received task: {:?}", task);
+                let task_id = task.id.clone();
+
+                // Clone necessary Arcs for the spawned task
+                let comm_client_clone = Arc::clone(&comm_client);
+                let permit_clone = permit; // Move the permit into the spawned task
+
+                // Spawn a new asynchronous task to execute the received task
+                tokio::spawn(async move {
+                    // Report task as running
+                    if let Err(e) = comm_client_clone.report_task_status(&task_id, "RUNNING").await {
+                        error!("Failed to report task {} as RUNNING: {}", task_id, e);
+                        // Consider releasing permit here if task execution won't proceed
+                        return;
+                    }
+
+                    let result = task_executor::execute_task(task).await;
+                    match result {
+                        Ok(task_result) => {
+                            info!("Task {} completed with status: {:?}", task_id, task_result.status);
+                            if let Err(e) = comm_client_clone.report_task_result(&task_id, task_result).await {
+                                error!("Failed to report task {} result: {}", task_id, e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Task {} failed during execution: {}", task_id, e);
+                            if let Err(e) = comm_client_clone.report_task_status(&task_id, "FAILED").await {
+                                error!("Failed to report task {} as FAILED: {}", task_id, e);
+                            }
+                        }
+                    }
+                    // The permit is automatically released when it goes out of scope
+                    drop(permit_clone);
+                    info!("Semaphore permit released for task {}. Available permits: {}", task_id, semaphore_clone.available_permits());
+                });
+            }
+            Ok(None) => {
+                info!("No tasks available. Releasing permit and waiting...");
+                drop(permit); // Release the permit if no task was found
+            }
+            Err(e) => {
+                error!("Error polling for tasks: {}", e);
+                drop(permit); // Release the permit on error
+            }
+        }
+
+        // Implement a delay to avoid busy-waiting and respect the poll interval
+        tokio::time::sleep(tokio::time::Duration::from_secs(agent_config.poll_interval_seconds)).await;
+    }
+}
+

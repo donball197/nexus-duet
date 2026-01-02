@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, Row};
 use tokio::net::TcpListener;
 use uuid::Uuid;
-use metrics_exporter_prometheus::PrometheusBuilder;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Task {
@@ -25,29 +24,19 @@ async fn main() {
     let database_url = "sqlite:tasks.db";
     let pool = SqlitePool::connect(database_url).await.expect("Failed to connect to DB");
 
-    // Initialize Prometheus and get the handle for the route
-    let builder = PrometheusBuilder::new();
-    let handle = builder.install_recorder().expect("Failed to install recorder");
-
     let app = Router::new()
         .route("/task", post(create_task))
         .route("/next_task", get(get_next_task))
         .route("/fail_task/:id", post(fail_task))
         .route("/complete_task/:id", post(complete_task))
-        .route("/health", get(|| async { "🏛️ TIER-1 INFRASTRUCTURE ONLINE" }))
-        .route("/metrics", get(move || {
-            let rendered = handle.render();
-            async move { rendered }
-        }))
         .with_state(pool);
 
-    let listener = TcpListener::bind("127.0.0.1:18080").await.unwrap();
-    println!("🏛️ TIER-1 INFRASTRUCTURE ONLINE (Port 18080)");
+    let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+    println!("🏛️ TIER-1 INFRASTRUCTURE ONLINE (Port 8080)");
     axum::serve(listener, app).await.unwrap();
 }
 
 async fn create_task(State(pool): State<SqlitePool>, Json(payload): Json<CreateTask>) -> String {
-    metrics::counter!("tasks_created_total", 1);
     let id = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO tasks (id, payload, attempts) VALUES (?, ?, 0)")
         .bind(&id).bind(&payload.payload)
@@ -58,7 +47,7 @@ async fn create_task(State(pool): State<SqlitePool>, Json(payload): Json<CreateT
 async fn get_next_task(State(pool): State<SqlitePool>) -> Json<Option<Task>> {
     let result = sqlx::query("SELECT id, payload, attempts FROM tasks LIMIT 1")
         .fetch_optional(&pool).await.unwrap();
-
+    
     let task = result.map(|row| Task {
         id: row.get(0),
         payload: row.get(1),
@@ -68,15 +57,13 @@ async fn get_next_task(State(pool): State<SqlitePool>) -> Json<Option<Task>> {
 }
 
 async fn complete_task(State(pool): State<SqlitePool>, Path(id): Path<String>) {
-    metrics::counter!("tasks_completed_total", 1);
     sqlx::query("DELETE FROM tasks WHERE id = ?").bind(id).execute(&pool).await.unwrap();
 }
 
 async fn fail_task(State(pool): State<SqlitePool>, Path(id): Path<String>) {
-    metrics::counter!("tasks_failed_total", 1);
     let row = sqlx::query("SELECT payload, attempts FROM tasks WHERE id = ?")
         .bind(&id).fetch_one(&pool).await.unwrap();
-
+    
     let payload: String = row.get(0);
     let attempts: i32 = row.get(1);
 
@@ -91,5 +78,13 @@ async fn fail_task(State(pool): State<SqlitePool>, Path(id): Path<String>) {
     } else {
         sqlx::query("UPDATE tasks SET attempts = attempts + 1 WHERE id = ?")
             .bind(id).execute(&pool).await.unwrap();
+    }
+}
+
+fn init_metrics() {
+    if let Err(e) = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install()
+    {
+        eprintln!("⚠️ metrics disabled: {}", e);
     }
 }

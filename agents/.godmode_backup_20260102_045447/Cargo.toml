@@ -1,0 +1,35 @@
+[package]
+name = "rust-devops-agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Asynchronous runtime for non-blocking I/O and concurrency
+tokio = { version = "1", features = ["full"] }
+
+# Serialization/Deserialization framework
+serde = { version = "1", features = ["derive"] }
+serde_json = "1" # For JSON payloads
+
+# Configuration management
+config = { version = "0.13", features = ["toml", "yaml"] } # Supports TOML and YAML config files
+clap = { version = "4", features = ["derive"] } # For command-line argument parsing
+
+# Structured logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Robust error handling
+anyhow = "1"
+thiserror = "1"
+
+# HTTP client for communication with orchestrator
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false } # Using rustls for TLS
+url = "2" # For parsing URLs in configuration
+
+# For generating unique IDs (e.g., task IDs in mock communication)
+uuid = { version = "1", features = ["fast-rng", "v4"] }
+rand = "0.8" # For random task generation in mock communication
+
+
+[workspace]

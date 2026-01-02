@@ -17,8 +17,8 @@ reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"
 metrics = "0.21"
 metrics-exporter-prometheus = "0.13"
 [profile.release]
-opt-level = 'z'     # Minimize binary size
+opt-level = 'z'     # Optimize for size
 lto = true          # Enable Link Time Optimization
-codegen-units = 1   # Reduce parallel units for better optimization
-panic = 'abort'     # Strip panic recovery code to save space
-strip = true        # Remove symbols from the binary
+codegen-units = 1   # Reduce parallel compilation to improve optimization
+panic = 'abort'     # Remove stack unwinding code to save space
+strip = true        # Automatically strip symbols from the binary

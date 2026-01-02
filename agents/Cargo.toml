@@ -1,0 +1,25 @@
+[package]
+name = "rust-devops-agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+config = { version = "0.13", features = ["toml", "yaml"] }
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "1"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+url = "2"
+uuid = { version = "1", features = ["fast-rng", "v4"] }
+rand = "0.8"
+# --- GOD MODE PATCH ADDITIONS ---
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+num_cpus = "1.16"
+[workspace]
+# Keep this empty to tell Cargo this is an independent project
