@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # --- CONFIGURATION ---
-DB_PATH="/root/nexus-duet/backend/tasks.db"
+DB_PATH="/data/data/com.termux/files/home/nexus-duet-native/backend/tasks.db"
 
 # --- T2 PERSISTENCE CLEANUP ---
 echo "🧹 Cleaning T2 Persistence locks..."
-rm -f ~/nexus-duet/backend/db/*.db-journal
-rm -f ~/nexus-duet/backend/*.db-journal
+rm -f ~/nexus-duet-native/backend/db/*.db-journal
+rm -f ~/nexus-duet-native/backend/*.db-journal
 
 # --- T4 GATEWAY VERIFICATION ---
 echo "📡 Verifying Port 18080 availability..."
@@ -31,14 +31,14 @@ HEALER_PID=$!
 
 # --- T1 INFRASTRUCTURE LAUNCH ---
 echo "🏛️ Launching T1 Infrastructure..."
-cd ~/nexus-duet/backend
+cd ~/nexus-duet-native/backend
 ../target/release/athenafusionx-backend &
 BACKEND_PID=$!
 
 # --- T3 AGENT SYNCHRONIZATION ---
 sleep 2
 echo "🛡️ Launching T3 Chaos Agent (100% Logic)..."
-cd ~/nexus-duet/agents
+cd ~/nexus-duet-native/agents
 cargo run &
 AGENT_PID=$!
 

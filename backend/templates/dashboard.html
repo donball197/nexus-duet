@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>NEXUS OMEGA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="4">
+<style>
+:root{--bg:#050505;--card:#111;--text:#00ff41;--fail:#ff003c;--dim:#444;}
+body{background:var(--bg);color:var(--text);font-family:monospace;padding:10px;margin:0;}
+.head{border-bottom:2px solid var(--text);padding-bottom:10px;margin-bottom:15px;display:flex;justify-content:space-between;}
+.card{background:var(--card);border:1px solid var(--dim);padding:15px;margin-bottom:10px;border-radius:4px;}
+input,select,button{width:100%;padding:12px;margin:5px 0;background:#000;border:1px solid var(--dim);color:#fff;}
+button.run{background:var(--text);color:black;font-weight:bold;border:none;}
+button.panic{background:var(--fail);color:white;border:1px solid red;font-weight:bold;margin-top:20px;}
+.badge{font-size:0.7em;padding:2px 5px;border:1px solid var(--dim);}
+.COMPLETED{color:var(--text);border-color:var(--text);} .PROCESSING{color:orange;} .FAILED{color:var(--fail);}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:99;}
+.modal img{margin:10% auto;display:block;max-width:90%;border:2px solid var(--text);}
+</style>
+</head>
+<body>
+<div class="head"><div><strong>🏛️ NEXUS OMEGA</strong></div><div>STATUS: <span style="color:var(--text)">ACTIVE</span></div></div>
+<div class="card">
+<form action="/trigger" method="post">
+<select name="task_name">
+<option value="General">💬 Neural Uplink</option>
+<option value="VisionTask">👁️ Vision Scan</option>
+<option value="Code">💻 Logic Core</option>
+</select>
+<input name="prompt" placeholder="Directive...">
+<button class="run" type="submit">EXECUTE</button>
+</form>
+</div>
+{% for t in tasks %}
+<div class="card">
+<div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+<span><span class="badge {{t[4]}}">{{t[4]}}</span> <small>#{{t[0]}}</small></span>
+{% if t[6] %}<button onclick="view({{t[0]}})" style="width:auto;padding:2px 8px;margin:0;">IMG</button>{% endif %}
+</div>
+<div style="color:#fff;margin-bottom:5px;">{{t[2]}}</div>
+<div style="color:#888;font-size:0.9em;border-top:1px dashed #333;padding-top:5px;">{{t[3]}}</div>
+</div>
+{% endfor %}
+<form action="/panic" method="post" onsubmit="return confirm('KILL SYSTEM?');"><button class="panic">🚨 KILL SWITCH</button></form>
+<div id="vModal" class="modal" onclick="this.style.display='none'"><img id="mImg"></div>
+<script>function view(id){document.getElementById('mImg').src='/img/'+id;document.getElementById('vModal').style.display='block';}</script>
+</body>
+</html>
