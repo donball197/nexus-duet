@@ -1,15 +1,21 @@
-name: Cloud Forge Lite
+name: Cloud Forge ARM
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build Lite Core
-        run: cargo build --release
+      - name: Install ARM Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build for Android/ARM64
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          cargo build --release --target aarch64-unknown-linux-gnu
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-bin
-          path: "**/target/release/nexus_singularity"
-          if-no-files-found: error
+          name: nexus-bin-arm
+          path: "**/target/aarch64-unknown-linux-gnu/release/nexus_singularity"
