@@ -1,22 +1,20 @@
-name: Cloud Forge NDK
+name: Cloud Forge Zig
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r25c
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk
+      - name: Install Zig & Cargo-Zigbuild
+        run: |
+          sudo snap install zig --classic --beta
+          cargo install cargo-zigbuild
       - name: Build for Android (ARM64)
         run: |
           rustup target add aarch64-linux-android
-          cargo ndk -t arm64-v8a build --release
+          cargo zigbuild --release --target aarch64-linux-android
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-bin-ndk
+          name: nexus-bin-zig
           path: "target/aarch64-linux-android/release/nexus_singularity"
