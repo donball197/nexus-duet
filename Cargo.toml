@@ -23,5 +23,4 @@ sled = "0.34"
 opt-level = 'z'      # Smallest possible binary
 lto = false          # DISABLE LTO (prevents RAM spikes)
 codegen-units = 1    # One thread only
-panic = "abort"      # Strip unwinding code
 strip = true         # Remove all symbols
