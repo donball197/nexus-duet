@@ -1,19 +1,22 @@
-name: Cloud Forge Slim
+name: Cloud Forge NDK
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Musl Toolchain
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build Static ARM64
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+      - name: Build for Android (ARM64)
         run: |
-          rustup target add aarch64-unknown-linux-musl
-          # We use 'cargo build' directly with the musl target for maximum stability
-          cargo build --release --target aarch64-unknown-linux-musl
+          rustup target add aarch64-linux-android
+          cargo ndk -t arm64-v8a build --release
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-bin-slim
-          path: "target/aarch64-unknown-linux-musl/release/nexus_singularity"
+          name: nexus-bin-ndk
+          path: "target/aarch64-linux-android/release/nexus_singularity"
