@@ -1,17 +1,19 @@
-name: Cloud Forge Cross
+name: Cloud Forge Slim
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Cross
-        run: cargo install cross --git https://github.com/cross-rs/cross.git
-      - name: Build for ARM64
+      - name: Install Musl Toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build Static ARM64
         run: |
-          cross build --release --target aarch64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-musl
+          # We use 'cargo build' directly with the musl target for maximum stability
+          cargo build --release --target aarch64-unknown-linux-musl
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-bin-cross
-          path: "**/target/aarch64-unknown-linux-gnu/release/nexus_singularity"
+          name: nexus-bin-slim
+          path: "target/aarch64-unknown-linux-musl/release/nexus_singularity"
