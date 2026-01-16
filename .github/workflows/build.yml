@@ -11,8 +11,11 @@ jobs:
           command: build
           target: aarch64-unknown-linux-musl
           args: "--release"
+        env:
+          OPENSSL_STATIC: 1
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: nexus-bin-static
-          path: "target/aarch64-unknown-linux-musl/release/nexus_singularity"
+          # The '*' wildcard ensures we grab the binary regardless of the name
+          path: "target/aarch64-unknown-linux-musl/release/nexus*"
