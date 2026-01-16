@@ -24,3 +24,4 @@ opt-level = 'z'      # Smallest possible binary
 lto = false          # DISABLE LTO (prevents RAM spikes)
 codegen-units = 1    # One thread only
 strip = true         # Remove all symbols
+# Nexus Lite Build
