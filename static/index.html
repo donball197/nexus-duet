@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NEXUS CYBER-DECK</title>
+    <style>
+        body { background: #0a0a0a; color: #00ffcc; font-family: 'Courier New', monospace; padding: 20px; }
+        .box { border: 1px solid #00ffcc; padding: 15px; margin-bottom: 10px; box-shadow: 0 0 10px #00ffcc; }
+        input { background: #000; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px; width: 70%; }
+        button { background: #00ffcc; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+        h1 { text-shadow: 0 0 20px #00ffcc; }
+    </style>
+</head>
+<body>
+    <h1>NEXUS PRIME: SINGULARITY</h1>
+    <div class="box">
+        <h3>📡 RADAR</h3>
+        <p id="stats">AWAITING PULSE...</p>
+    </div>
+    <div class="box">
+        <h3>> CONSOLE</h3>
+        <input type="text" id="cmdInput" placeholder="Enter Command (Start with ! for Shell)">
+        <button onclick="sendCmd()">EXEC</button>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        async function sendCmd() {
+            const cmd = document.getElementById('cmdInput').value;
+            const res = await fetch('http://127.0.0.1:8081/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({command: cmd})
+            });
+            const data = await res.json();
+            document.getElementById('output').innerText = data.output;
+        }
+    </script>
+</body>
+</html>

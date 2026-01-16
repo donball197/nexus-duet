@@ -1,0 +1,10 @@
+[package]
+name = "human_wheel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui.workspace = true
+crossterm.workspace = true
+color-eyre.workspace = true
+tokio.workspace = true

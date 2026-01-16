@@ -1,0 +1,9 @@
+[package]
+name = "nexus_editor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+ratatui = { workspace = true }
+crossterm = { workspace = true }

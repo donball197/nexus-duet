@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS IDE // SOVEREIGN</title>
+    <style>
+        :root { --c-file: #00FFFF; --c-edit: #FF00FF; --c-term: #ADFF2F; --c-btn: #8A2BE2; }
+        body, html { margin:0; height:100%; background:#000; font-family:monospace; color:var(--c-edit); overflow:hidden; }
+        
+        #container { display:flex; height:100%; width: 100vw; transition: all 0.3s ease; }
+        
+        /* Retractable Sidebar */
+        #file-panel { 
+            width:220px; 
+            min-width: 220px;
+            border-right:1px solid var(--c-btn); 
+            background:#0a0a0a; 
+            overflow-y:auto; 
+            transition: margin-left 0.3s ease, min-width 0.3s ease;
+        }
+        #file-panel.collapsed { 
+            margin-left: -220px; 
+            min-width: 0;
+        }
+
+        #main { flex-grow:1; display:flex; flex-direction:column; min-width: 0; }
+        
+        /* Floating Toggle Button */
+        #sidebar-toggle {
+            position: fixed;
+            left: 10px;
+            top: 10px;
+            z-index: 100;
+            background: var(--c-btn);
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            opacity: 0.7;
+        }
+        #sidebar-toggle:hover { opacity: 1; }
+
+        #editor { flex-grow:1; padding:40px 15px 15px 15px; background:#000; color:#fff; outline:none; white-space:pre-wrap; overflow-y:auto; }
+        #terminal { height:40%; border-top:2px solid var(--c-btn); background:#050505; display:flex; flex-direction:column; }
+        #term-out { flex-grow:1; padding:10px; overflow-y:auto; color:var(--c-term); font-size:0.9em; }
+        #term-in { display:flex; background:#111; }
+        
+        input { flex-grow:1; background:transparent; border:none; color:var(--c-term); padding:12px; outline:none; }
+        button.action-btn { background:var(--c-btn); color:#fff; border:none; padding:12px; cursor:pointer; font-weight:bold; }
+        
+        .nav-header { padding: 10px; border-bottom: 1px solid var(--c-btn); display: flex; justify-content: space-between; align-items: center; }
+    </style>
+</head>
+<body onload="loadFiles()">
+
+<button id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+
+<div id="container">
+    <div id="file-panel">
+        <div class="nav-header">
+            <span style="color:var(--c-file)">FILES</span>
+            <div>
+                <button onclick="takeSnapshot()" style="font-size:8px; background:var(--c-btn); color:#fff; border:none; padding:2px 4px; margin-right:2px;">COMMIT</button>
+                <button onclick="restore()" style="font-size:8px; background:red; color:#fff; border:none; padding:2px 4px;">REVERT</button> <button onclick="saveCurrentFile()" style="font-size:8px; background:#00ff41; color:#000; border:none; padding:2px 4px; margin-right:2px;">SAVE</button> <button onclick="triggerBuild()" style="font-size:8px; background:#ffcc00; color:#000; border:none; padding:2px 4px; margin-right:2px;">BUILD</button>
+            </div>
+        </div>
+        <ul id="file-list" style="list-style:none; padding:0;"></ul>
+    <div id="sys-mon" style="padding:10px; border-top:1px solid var(--c-btn); font-size:10px; color:var(--c-term); background:#000;">
+        CPU: <span id="cpu-val">0</span>%<br>
+        RAM: <span id="ram-val">0</span> MB
+    </div>
+    <div id="sys-mon" style="padding:10px; border-top:1px solid var(--c-btn); font-size:10px; color:var(--c-term); background:#000;">
+        CPU: <span id="cpu-val">0</span>%<br>
+        RAM: <span id="ram-val">0</span> MB
+    </div>
+    </div>
+    
+    <div id="main">
+        <div id="editor" contenteditable="true" spellcheck="false">// Select a file to edit...</div>
+        <div id="terminal">
+            <div id="term-out">>> SYSTEM CONVERGED. SIDEBAR TOGGLE READY.</div>
+            <div id="term-in">
+                <input id="cmd" placeholder="Ask Guardian...">
+                <button id="run" class="action-btn">TRANSMIT</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const term = document.getElementById('term-out');
+    const panel = document.getElementById('file-panel');
+
+    function toggleSidebar() {
+        panel.classList.toggle('collapsed');
+    }
+
+    async function loadFiles() {
+        try {
+            const res = await fetch('/files'); 
+            const d = await res.json();
+            document.getElementById('file-list').innerHTML = d.files.map(f => 
+                `<li style="padding:8px 15px; color:var(--c-file); cursor:pointer; border-bottom:1px solid #111;" onclick="loadFileContent('${f}')">${f}</li>`
+            ).join('');
+        } catch(e) { term.innerHTML += "\n>> Error loading files."; }
+    }
+
+async function loadFileContent(filename) {
+    const term = document.getElementById("term-out");
+    const editor = document.getElementById("editor");
+    term.innerHTML += `\n>> Reading ${filename}...`;
+    try {
+        const res = await fetch(`/read/${filename}`);
+        const content = await res.text();
+        editor.innerText = content;
+        term.innerHTML += " DONE.";
+    } catch(e) {
+        term.innerHTML += " FAILED.";
+    }
+}
+        // Future endpoint for reading file content goes here
+    }
+
+async function takeSnapshot() {
+    const msg = prompt("Enter Commit Message:", "Guardian Auto-Commit");
+    if (!msg) return;
+    const termOut = document.getElementById("term-out");
+    termOut.innerHTML += "\n>> COMMITTING TO GIT...";
+    const res = await fetch("/terminal", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ command: `git add . && git commit -m "${msg}"` })
+    });
+    const data = await res.json();
+    termOut.innerHTML += `\n>> ${data.output}`;
+}
+            body:JSON.stringify({command: "tar -czf nexus_snapshot_$(date +%s).tar.gz src index.html"})
+        });
+        term.innerHTML += "\n>> SNAPSHOT SAVED.";
+    }
+
+    async function restore() {
+        if(!confirm("REVERT SYSTEM?")) return;
+        const res = await fetch('/restore', {method:'POST'});
+        const d = await res.json(); 
+        term.innerHTML += `\n>> ${d.output}`;
+    }
+
+    async function transmit() {
+        const inp = document.getElementById('cmd'); 
+        const val = inp.value; if(!val) return; 
+        inp.value = '';
+        term.innerHTML += `<div style="color:#fff; margin-top:10px;">| USER> ${val}</div><div id="ai">| GUARDIAN> </div>`;
+        const aiDiv = document.getElementById('ai'); 
+        aiDiv.removeAttribute('id');
+
+        const res = await fetch('/ask', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({prompt:val})
+        });
+        const reader = res.body.getReader(); 
+        const dec = new TextDecoder();
+        
+        while(true) {
+            const {done, value} = await reader.read(); 
+            if(done) break;
+            const chunk = dec.decode(value); 
+            const lines = chunk.split('\n');
+            for(let l of lines) if(l.startsWith('data:')) { 
+                aiDiv.innerText += l.substring(5).trim() + " "; 
+                term.scrollTop = term.scrollHeight; 
+            }
+        }
+    }
+
+    document.getElementById('run').onclick = transmit;
+    document.getElementById('cmd').onkeypress = (e) => { if(e.key==='Enter') transmit(); };
+</script>
+</body>
+</html>
+<script>
+let currentOpenFile = null;
+
+// Update the existing loadFileContent to track the filename
+async function loadFileContent(filename) {
+    const term = document.getElementById("term-out");
+    const editor = document.getElementById("editor");
+    currentOpenFile = filename;
+    term.innerHTML += `\n>> Opening ${filename}...`;
+    try {
+        const res = await fetch(`/read/${filename}`);
+        const content = await res.text();
+        editor.innerText = content;
+        term.innerHTML += " DONE.";
+    } catch(e) { term.innerHTML += " FAILED."; }
+}
+
+async function saveCurrentFile() {
+    if (!currentOpenFile) return alert("No file selected.");
+    const term = document.getElementById("term-out");
+    const editor = document.getElementById("editor");
+    term.innerHTML += `\n>> Saving ${currentOpenFile}...`;
+    
+    const res = await fetch('/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name: currentOpenFile, content: editor.innerText })
+    });
+
+    if (res.ok) {
+        term.innerHTML += " SUCCESS.";
+    } else {
+        term.innerHTML += " ERROR SAVING.";
+    }
+}
+</script>
+<script>
+async function triggerBuild() {
+    const term = document.getElementById("term-out");
+    term.innerHTML += "\n>> INITIATING COMPILATION (-j1)...";
+    term.scrollTop = term.scrollHeight;
+    
+    const res = await fetch('/build', { method: 'POST' });
+    const data = await res.json();
+    
+    if (res.ok) {
+        term.innerHTML += `\n<span style="color:#00ff41;">>> BUILD SUCCESSFUL</span>\n${data.output}`;
+    } else {
+        term.innerHTML += `\n<span style="color:#ff0000;">>> BUILD FAILED</span>\n${data.output}`;
+    }
+    term.scrollTop = term.scrollHeight;
+}
+</script>
+<script>
+async function updateStats() {
+    try {
+        const res = await fetch('/stats');
+        const data = await res.json();
+        document.getElementById('cpu-val').innerText = data.cpu_usage.toFixed(1);
+        document.getElementById('ram-val').innerText = `${data.ram_used} / ${data.ram_total}`;
+        
+        // Visual warning for high usage
+        const mon = document.getElementById('sys-mon');
+        if (data.cpu_usage > 90) mon.style.color = "red";
+        else if (data.ram_used / data.ram_total > 0.8) mon.style.color = "orange";
+        else mon.style.color = "var(--c-term)";
+    } catch(e) {}
+}
+setInterval(updateStats, 2000); // Update every 2 seconds
+</script>
+<script>
+async function updateStats() {
+    try {
+        const res = await fetch('/stats');
+        const data = await res.json();
+        document.getElementById('cpu-val').innerText = data.cpu_usage.toFixed(1);
+        document.getElementById('ram-val').innerText = `${data.ram_used} / ${data.ram_total}`;
+        
+        // Visual warning for high usage
+        const mon = document.getElementById('sys-mon');
+        if (data.cpu_usage > 90) mon.style.color = "red";
+        else if (data.ram_used / data.ram_total > 0.8) mon.style.color = "orange";
+        else mon.style.color = "var(--c-term)";
+    } catch(e) {}
+}
+setInterval(updateStats, 2000); // Update every 2 seconds
+</script>

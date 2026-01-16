@@ -1,0 +1,39 @@
+# Security: Secrets and Keys
+.env
+env
+config.json
+*.pem
+*.key
+GEMINI_API_KEY
+
+# Build and Binary Artifacts
+target/
+debug/
+release/
+*.tar.gz
+n
+
+# Dependencies and Virtual Envs
+.venv/
+.cargo/
+venv/
+bin/
+lib/
+share/
+
+# Runtime Workspace and Data
+workspace/
+data/
+state/
+inbox/
+nexus_db/
+nexus_memory/
+nexus_lite/
+nexus_os/
+*.log
+mission_log.txt
+
+# OS/IDE Garbage
+.DS_Store
+.idea/
+.vscode/
