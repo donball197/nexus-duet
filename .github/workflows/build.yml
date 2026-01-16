@@ -9,10 +9,11 @@ jobs:
         run: |
           sudo snap install zig --classic --beta
           cargo install cargo-zigbuild
-      - name: Build for Android (ARM64)
+      - name: Build for Android (ARM64 API 24)
         run: |
           rustup target add aarch64-linux-android
-          cargo zigbuild --release --target aarch64-linux-android
+          # Appending .24 tells Zig to target Android API Level 24
+          cargo zigbuild --release --target aarch64-linux-android.24
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
